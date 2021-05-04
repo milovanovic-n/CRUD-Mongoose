@@ -6,6 +6,8 @@ const PORT = 3000;
 
 // REQUIRE PRODUCT MODEL
 const Product = require("./models/product");
+// REQUIRE FARM MODEL
+const Farm = require("./models/farm");
 
 // CONNECT MONGODB
 const mongoose = require("mongoose");
@@ -28,11 +30,91 @@ app.use(express.urlencoded({ extended: true }));
 app.use(methodOverride("_method"));
 
 
-/**
- * 
- * 
- */
+/*
+ * FARM ROUTES
+*/
 
+// FARMS PAGE
+app.get("/farms", async (req, res) => {
+  try {
+    const farms = await Farm.find({});
+    res.render("farms/index", { farms });
+  } catch(err) {
+    console.log(err);
+    res.send("CANNOT FIND ANY FARMS AT THE MOMENT, PLEASE TRY LATER!");
+  }
+});
+
+// SHOW FORM FOR CREATING NEW FARM
+app.get("/farms/new", (req, res) => {
+  res.render("farms/new");
+});
+
+// SUBMIT FORM - CREATE FARM
+app.post("/farms", async (req, res) => {
+  try {
+    const { name, city, email } = req.body;
+    const farm = new Farm({
+      name,
+      city,
+      email
+    });
+    await farm.save();
+    res.redirect("/farms");
+  } catch(err) {
+    console.log(err);
+    res.send("ERROR WHILE CREATING THE FARM");
+  }
+});
+
+// FARM DETAILS PAGE
+app.get("/farms/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const farm = await Farm.findById(id).populate("products");
+    res.render("farms/show", { farm });
+  } catch(err) {
+    res.send("FARM NOT FOUND!");
+  }
+});
+
+// SHOW FORM TO ADD PRODUCT TO A PARTICULAR FARM
+app.get("/farms/:id/products/new", async (req, res) => {
+  const { id } = req.params;
+  const farm = await Farm.findById(id);
+  res.render("products/new", { categories, farm });
+});
+
+// SUBMIT FORM FOR THE FARM`S PRODUCT
+app.post("/farms/:id/products", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const farm = await Farm.findById(id);
+    const { name, price, category } = req.body;
+    const product = new Product({
+      name, price, category
+    });
+    farm.products.push(product);
+    product.farm = farm;
+    await farm.save();
+    await product.save();
+    res.redirect(`/farms/${id}`);
+  } catch(err) {
+    console.log(err);
+  }
+});
+
+// DELETE FARM AND RELATED PRODUCTS
+app.delete("/farms/:id", async (req, res) => {
+  const { id } = req.params;
+  const farm = await Farm.findByIdAndDelete(id);
+  res.redirect("/farms");
+}); 
+
+
+/*
+ * PRODUCT ROUTES
+*/
 // CATEGORIES
 const categories = ["fruit", "vegetable", "dairy"];
 
@@ -78,7 +160,7 @@ app.post("/products", async (req, res) => {
 app.get("/products/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const product = await Product.findById(id);
+    const product = await Product.findById(id).populate("farm", "name");
     res.render("products/show", { product });
   } catch(err) {
     res.send("PRODUCT NOT FOUND!");
